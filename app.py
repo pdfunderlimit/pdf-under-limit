@@ -83,7 +83,7 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
     """
 
 # ---------------------------
-# RESULT PAGE
+# RESULT PAGE (WITH BACK OPTION)
 # ---------------------------
 def render_result_page(original_kb, compressed_kb, percent, download_id):
     return f"""
@@ -112,16 +112,27 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
                 margin: 8px 0;
                 font-size: 14px;
             }}
-            button {{
-                margin-top: 20px;
-                padding: 10px;
-                width: 100%;
+            .download {{
                 background: #16a34a;
                 color: white;
                 border: none;
                 border-radius: 6px;
+                padding: 10px;
+                width: 100%;
                 font-size: 15px;
                 cursor: pointer;
+                margin-top: 18px;
+            }}
+            .back {{
+                background: #2563eb;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px;
+                width: 100%;
+                font-size: 14px;
+                cursor: pointer;
+                margin-top: 10px;
             }}
         </style>
     </head>
@@ -131,9 +142,14 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
             <div class="stat">Original size: <strong>{original_kb} KB</strong></div>
             <div class="stat">Compressed size: <strong>{compressed_kb} KB</strong></div>
             <div class="stat">Reduced by: <strong>{percent}%</strong></div>
+
             <form action="/download/{download_id}" method="get">
-                <button type="submit">Download Compressed PDF</button>
+                <button class="download" type="submit">Download Compressed PDF</button>
             </form>
+
+            <button class="back" onclick="history.back()">
+                Compress Another PDF
+            </button>
         </div>
     </body>
     </html>
@@ -142,7 +158,6 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
 # ---------------------------
 # ROUTES
 # ---------------------------
-
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_page(
@@ -205,7 +220,7 @@ def cleanup(path: str):
         pass
 
 # ---------------------------
-# COMPRESSION ENDPOINT
+# COMPRESSION
 # ---------------------------
 @app.post("/compress", response_class=HTMLResponse)
 def compress(background_tasks: BackgroundTasks,
@@ -220,48 +235,33 @@ def compress(background_tasks: BackgroundTasks,
 
     original_kb = math.ceil(os.path.getsize(input_path) / 1024)
 
-    # ---- MINIMUM TARGET VALIDATION ----
     MIN_ABSOLUTE_KB = 50
-    MIN_PERCENT = 0.10  # 10%
-
+    MIN_PERCENT = 0.10
     min_allowed_kb = max(MIN_ABSOLUTE_KB, math.ceil(original_kb * MIN_PERCENT))
 
     if target_kb < min_allowed_kb:
         background_tasks.add_task(cleanup, work_dir)
         return HTMLResponse(
             content=f"""
-            <html>
-            <body style="font-family:Arial;background:#f5f7fa;display:flex;justify-content:center;align-items:center;height:100vh;">
-                <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
-                    <h2>Target Size Too Small</h2>
-                    <p>
-                        This PDF cannot be compressed to <strong>{target_kb} KB</strong>.
-                    </p>
-                    <p>
-                        Please choose at least <strong>{min_allowed_kb} KB</strong>.
-                    </p>
-                    <button onclick="history.back()" style="margin-top:15px;padding:10px;width:100%;">
-                        Go Back
-                    </button>
-                </div>
-            </body>
-            </html>
+            <html><body style="font-family:Arial;background:#f5f7fa;
+            display:flex;justify-content:center;align-items:center;height:100vh;">
+            <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
+                <h2>Target Size Too Small</h2>
+                <p>Please choose at least <strong>{min_allowed_kb} KB</strong>.</p>
+                <button onclick="history.back()" style="padding:10px;width:100%;margin-top:10px;">
+                    Go Back
+                </button>
+            </div></body></html>
             """,
             status_code=400,
         )
 
-    # ---- COMPRESSION ----
     output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
     os.close(output_fd)
 
     subprocess.run(
-        [
-            "python3",
-            os.path.join(os.getcwd(), "compress_safe.py"),
-            input_path,
-            output_path,
-            str(target_kb),
-        ],
+        ["python3", os.path.join(os.getcwd(), "compress_safe.py"),
+         input_path, output_path, str(target_kb)],
         capture_output=True,
         text=True,
     )
@@ -274,12 +274,7 @@ def compress(background_tasks: BackgroundTasks,
 
     background_tasks.add_task(cleanup, work_dir)
 
-    return render_result_page(
-        original_kb,
-        compressed_kb,
-        percent,
-        download_id
-    )
+    return render_result_page(original_kb, compressed_kb, percent, download_id)
 
 # ---------------------------
 # DOWNLOAD
