@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, Request
 from fastapi.responses import FileResponse, HTMLResponse
 import shutil
 import tempfile
@@ -12,8 +12,15 @@ app = FastAPI()
 # ---------------------------
 # HTML PAGE RENDERER
 # ---------------------------
-def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True):
+def render_page(title, heading, intro, default_kb, request: Request,
+                readonly=True, show_hint=True):
+
     readonly_attr = "readonly" if readonly else ""
+    path = request.url.path
+
+    def tab(url):
+        return "active" if path == url else ""
+
     hint_html = (
         f'<div class="hint">Target size: under <strong>{default_kb} KB</strong></div>'
         if show_hint else ""
@@ -49,11 +56,18 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
                 border-radius: 20px;
                 background: #e5e7eb;
                 color: #111827;
+                transition: all 0.2s ease;
             }}
 
             .nav a:hover {{
                 background: #4f46e5;
                 color: white;
+            }}
+
+            .nav a.active {{
+                background: #4f46e5;
+                color: white;
+                font-weight: bold;
             }}
 
             .card {{
@@ -119,11 +133,11 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
     <body>
 
         <div class="nav">
-            <a href="/passport-pdf-size">Passport (100 KB)</a>
-            <a href="/compress-pdf-200kb">200 KB</a>
-            <a href="/government-form-pdf">Govt Forms (300 KB)</a>
-            <a href="/compress-pdf-500kb">500 KB</a>
-            <a href="/">Custom</a>
+            <a href="/passport-pdf-size" class="{tab('/passport-pdf-size')}">Passport (100 KB)</a>
+            <a href="/compress-pdf-200kb" class="{tab('/compress-pdf-200kb')}">200 KB</a>
+            <a href="/government-form-pdf" class="{tab('/government-form-pdf')}">Govt Forms (300 KB)</a>
+            <a href="/compress-pdf-500kb" class="{tab('/compress-pdf-500kb')}">500 KB</a>
+            <a href="/" class="{tab('/')}">Custom</a>
         </div>
 
         <div class="card">
@@ -228,130 +242,53 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
 # ROUTES
 # ---------------------------
 @app.get("/", response_class=HTMLResponse)
-def home():
+def home(request: Request):
     return render_page(
         "Compress PDF Online – Custom Size",
         "Compress PDF to Any Size",
         "Reduce PDF size to any required limit.",
         500,
+        request,
         readonly=False,
         show_hint=False
     )
 
 @app.get("/passport-pdf-size", response_class=HTMLResponse)
-def passport_pdf():
+def passport_pdf(request: Request):
     return render_page(
         "Passport PDF Size Less Than 100KB – Free Online Tool",
         "Reduce Passport PDF Size",
         "Compress passport PDF below 100KB for online passport applications.",
-        100
+        100,
+        request
     )
 
 @app.get("/compress-pdf-200kb", response_class=HTMLResponse)
-def pdf_200kb():
+def pdf_200kb(request: Request):
     return render_page(
         "Compress PDF to 200KB Online – Free & Instant",
         "Compress PDF to 200KB",
         "Reduce PDF size below 200KB for government forms and applications.",
-        200
+        200,
+        request
     )
 
 @app.get("/government-form-pdf", response_class=HTMLResponse)
-def govt_pdf():
+def govt_pdf(request: Request):
     return render_page(
         "Compress PDF for Government Forms – Free & Easy",
         "Compress PDF for Government Forms",
         "Reduce PDF size under 300KB for government form uploads across Indian states.",
-        300
+        300,
+        request
     )
 
 @app.get("/compress-pdf-500kb", response_class=HTMLResponse)
-def pdf_500kb():
+def pdf_500kb(request: Request):
     return render_page(
         "Compress PDF to 500KB Online – Free & Secure",
         "Compress PDF to 500KB",
         "Reduce PDF size to 500KB for online uploads and submissions.",
-        500
-    )
-
-# ---------------------------
-# TEMP STORAGE
-# ---------------------------
-DOWNLOADS = {}
-
-def cleanup(path: str):
-    try:
-        if os.path.isfile(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            shutil.rmtree(path)
-    except Exception:
-        pass
-
-# ---------------------------
-# COMPRESSION
-# ---------------------------
-@app.post("/compress", response_class=HTMLResponse)
-def compress(background_tasks: BackgroundTasks,
-             file: UploadFile = File(...),
-             target_kb: int = Form(...)):
-
-    work_dir = tempfile.mkdtemp()
-    input_path = os.path.join(work_dir, file.filename)
-
-    with open(input_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    original_kb = math.ceil(os.path.getsize(input_path) / 1024)
-
-    MIN_ABSOLUTE_KB = 50
-    MIN_PERCENT = 0.10
-    min_allowed_kb = max(MIN_ABSOLUTE_KB, math.ceil(original_kb * MIN_PERCENT))
-
-    if target_kb < min_allowed_kb:
-        background_tasks.add_task(cleanup, work_dir)
-        return HTMLResponse(
-            f"<p style='text-align:center;'>Target too small. Minimum allowed: {min_allowed_kb} KB</p>",
-            status_code=400
-        )
-
-    output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
-    os.close(output_fd)
-
-    subprocess.run(
-        ["python3", os.path.join(os.getcwd(), "compress_safe.py"),
-         input_path, output_path, str(target_kb)],
-        capture_output=True,
-        text=True,
-    )
-
-    compressed_kb = math.ceil(os.path.getsize(output_path) / 1024)
-    percent = round((1 - compressed_kb / original_kb) * 100, 1)
-
-    download_id = str(uuid.uuid4())
-    DOWNLOADS[download_id] = output_path
-
-    background_tasks.add_task(cleanup, work_dir)
-
-    return render_result_page(original_kb, compressed_kb, percent, download_id)
-
-# ---------------------------
-# DOWNLOAD
-# ---------------------------
-@app.get("/download/{download_id}")
-def download(download_id: str, background_tasks: BackgroundTasks):
-    path = DOWNLOADS.pop(download_id, None)
-    if not path or not os.path.exists(path):
-        return {"error": "File expired"}
-
-    size_kb = math.ceil(os.path.getsize(path) / 1024)
-    filename = f"compressed_{size_kb}kb.pdf"
-
-    background_tasks.add_task(cleanup, path)
-
-    return FileResponse(
-        path,
-        media_type="application/pdf",
-        filename=filename,
-        background=background_tasks,
+        500,
+        request
     )
