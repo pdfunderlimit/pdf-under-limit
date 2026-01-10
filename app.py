@@ -34,6 +34,28 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
                 align-items: center;
                 height: 100vh;
             }}
+
+            .nav {{
+                position: absolute;
+                top: 20px;
+                display: flex;
+                gap: 10px;
+            }}
+
+            .nav a {{
+                text-decoration: none;
+                font-size: 13px;
+                padding: 6px 12px;
+                border-radius: 20px;
+                background: #e5e7eb;
+                color: #111827;
+            }}
+
+            .nav a:hover {{
+                background: #4f46e5;
+                color: white;
+            }}
+
             .card {{
                 background: white;
                 padding: 30px;
@@ -42,22 +64,27 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
                 box-shadow: 0 10px 25px rgba(0,0,0,0.1);
                 text-align: center;
             }}
+
             h2 {{ margin-bottom: 8px; }}
             p {{ font-size: 14px; color: #555; }}
+
             .hint {{
                 font-size: 13px;
                 color: #2563eb;
                 margin-bottom: 10px;
             }}
+
             input, button {{
                 width: 100%;
                 margin-top: 12px;
                 padding: 10px;
                 font-size: 14px;
             }}
+
             input[readonly] {{
                 background: #f1f5f9;
             }}
+
             button {{
                 background: #4f46e5;
                 color: white;
@@ -68,6 +95,15 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
         </style>
     </head>
     <body>
+
+        <div class="nav">
+            <a href="/passport-pdf-size">Passport (100 KB)</a>
+            <a href="/compress-pdf-200kb">200 KB</a>
+            <a href="/government-form-pdf">Govt Forms (300 KB)</a>
+            <a href="/compress-pdf-500kb">500 KB</a>
+            <a href="/">Custom</a>
+        </div>
+
         <div class="card">
             <h2>{heading}</h2>
             <p>{intro}</p>
@@ -78,6 +114,7 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
                 <button type="submit">Compress PDF</button>
             </form>
         </div>
+
     </body>
     </html>
     """
@@ -100,6 +137,7 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
                 align-items: center;
                 height: 100vh;
             }}
+
             .card {{
                 background: white;
                 padding: 30px;
@@ -108,10 +146,12 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
                 box-shadow: 0 10px 25px rgba(0,0,0,0.1);
                 text-align: center;
             }}
+
             .stat {{
                 margin: 8px 0;
                 font-size: 14px;
             }}
+
             .download {{
                 background: #16a34a;
                 color: white;
@@ -123,6 +163,7 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
                 cursor: pointer;
                 margin-top: 18px;
             }}
+
             .back {{
                 background: #2563eb;
                 color: white;
@@ -144,11 +185,13 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
             <div class="stat">Reduced by: <strong>{percent}%</strong></div>
 
             <form action="/download/{download_id}" method="get">
-                <button class="download" type="submit">Download Compressed PDF</button>
+                <button class="download" type="submit">
+                    Download Compressed PDF
+                </button>
             </form>
 
             <button class="back" onclick="history.back()">
-                Compress Another PDF
+                ⬅ Compress Another PDF
             </button>
         </div>
     </body>
@@ -243,7 +286,8 @@ def compress(background_tasks: BackgroundTasks,
         background_tasks.add_task(cleanup, work_dir)
         return HTMLResponse(
             content=f"""
-            <html><body style="font-family:Arial;background:#f5f7fa;
+            <html>
+            <body style="font-family:Arial;background:#f5f7fa;
             display:flex;justify-content:center;align-items:center;height:100vh;">
             <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
                 <h2>Target Size Too Small</h2>
@@ -251,7 +295,9 @@ def compress(background_tasks: BackgroundTasks,
                 <button onclick="history.back()" style="padding:10px;width:100%;margin-top:10px;">
                     Go Back
                 </button>
-            </div></body></html>
+            </div>
+            </body>
+            </html>
             """,
             status_code=400,
         )
