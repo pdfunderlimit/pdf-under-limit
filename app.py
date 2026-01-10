@@ -10,7 +10,9 @@ app = FastAPI()
 # ---------------------------
 # HTML PAGE RENDERER
 # ---------------------------
-def render_page(title, heading, intro, default_kb):
+def render_page(title, heading, intro, default_kb, readonly=True):
+    readonly_attr = "readonly" if readonly else ""
+
     return f"""
     <!DOCTYPE html>
     <html>
@@ -63,10 +65,12 @@ def render_page(title, heading, intro, default_kb):
         <div class="card">
             <h2>{heading}</h2>
             <p>{intro}</p>
-            <div class="hint">Target size: under <strong>{default_kb} KB</strong></div>
+            <div class="hint">
+                Target size: under <strong>{default_kb} KB</strong>
+            </div>
             <form action="/compress" method="post" enctype="multipart/form-data">
                 <input type="file" name="file" accept="application/pdf" required>
-                <input type="number" name="target_kb" value="{default_kb}" readonly>
+                <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
                 <button type="submit">Compress PDF</button>
             </form>
         </div>
@@ -75,18 +79,31 @@ def render_page(title, heading, intro, default_kb):
     """
 
 # ---------------------------
-# SEO ROUTES
+# ROUTES (ORDERED LOGICALLY)
 # ---------------------------
 
+# 1️⃣ Custom / Homepage
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_page(
-        "Compress PDF Online – Free Tool",
-        "Compress PDF Online",
-        "Reduce PDF size instantly for uploads and forms.",
-        300
+        "Compress PDF Online – Custom Size",
+        "Compress PDF to Any Size",
+        "Reduce PDF size to any required limit like 777 KB, 998 KB, or 1000 KB. Output will be under the target size.",
+        500,
+        readonly=False
     )
 
+# 2️⃣ Passport (Most strict)
+@app.get("/passport-pdf-size", response_class=HTMLResponse)
+def passport_pdf():
+    return render_page(
+        "Passport PDF Size Less Than 100KB – Free Online Tool",
+        "Reduce Passport PDF Size",
+        "Compress passport PDF below 100KB for online passport applications.",
+        100
+    )
+
+# 3️⃣ 200 KB
 @app.get("/compress-pdf-200kb", response_class=HTMLResponse)
 def pdf_200kb():
     return render_page(
@@ -96,6 +113,17 @@ def pdf_200kb():
         200
     )
 
+# 4️⃣ Government forms (state-agnostic)
+@app.get("/government-form-pdf", response_class=HTMLResponse)
+def govt_pdf():
+    return render_page(
+        "Compress PDF for Government Forms – Free & Easy",
+        "Compress PDF for Government Forms",
+        "Reduce PDF size under 300KB for government form uploads across Indian states.",
+        300
+    )
+
+# 5️⃣ 500 KB
 @app.get("/compress-pdf-500kb", response_class=HTMLResponse)
 def pdf_500kb():
     return render_page(
@@ -103,24 +131,6 @@ def pdf_500kb():
         "Compress PDF to 500KB",
         "Reduce PDF size to 500KB for online uploads and submissions.",
         500
-    )
-
-@app.get("/passport-pdf-size", response_class=HTMLResponse)
-def passport_pdf():
-    return render_page(
-        "Passport PDF Size Less Than 100KB – Free Online Tool",
-        "Reduce Passport PDF Size",
-        "Compress passport PDF below 100KB for online applications.",
-        100
-    )
-
-@app.get("/government-form-pdf", response_class=HTMLResponse)
-def govt_pdf():
-    return render_page(
-        "Compress PDF for Government Forms – Free & Easy",
-        "Compress PDF for Government Forms",
-        "Reduce PDF size under 300KB for government form uploads across states.",
-        300
     )
 
 # ---------------------------
@@ -148,7 +158,7 @@ def compress(
     work_dir = tempfile.mkdtemp()
     input_path = os.path.join(work_dir, file.filename)
 
-    # Output file must persist until download finishes
+    # Output file must persist until response finishes
     output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
     os.close(output_fd)
 
@@ -156,7 +166,7 @@ def compress(
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # Run compression
+    # Run compression engine
     result = subprocess.run(
         [
             "python3",
@@ -169,7 +179,7 @@ def compress(
         text=True,
     )
 
-    # Validate compression
+    # Validate result
     if result.returncode not in (0, 2) or not os.path.exists(output_path):
         cleanup(work_dir)
         cleanup(output_path)
