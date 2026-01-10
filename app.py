@@ -92,6 +92,28 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
                 border-radius: 6px;
                 cursor: pointer;
             }}
+
+            .loading {{
+                display: none;
+                margin-top: 20px;
+                font-size: 14px;
+                color: #2563eb;
+            }}
+
+            .spinner {{
+                margin: 10px auto;
+                width: 28px;
+                height: 28px;
+                border: 3px solid #c7d2fe;
+                border-top: 3px solid #4f46e5;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }}
+
+            @keyframes spin {{
+                0% {{ transform: rotate(0deg); }}
+                100% {{ transform: rotate(360deg); }}
+            }}
         </style>
     </head>
     <body>
@@ -108,19 +130,34 @@ def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True
             <h2>{heading}</h2>
             <p>{intro}</p>
             {hint_html}
-            <form action="/compress" method="post" enctype="multipart/form-data">
+
+            <form id="uploadForm" action="/compress" method="post" enctype="multipart/form-data"
+                  onsubmit="startLoading()">
                 <input type="file" name="file" accept="application/pdf" required>
                 <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
-                <button type="submit">Compress PDF</button>
+                <button id="submitBtn" type="submit">Compress PDF</button>
             </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                Compressing your PDF… this may take a few seconds.
+            </div>
         </div>
+
+        <script>
+            function startLoading() {{
+                document.getElementById("submitBtn").disabled = true;
+                document.getElementById("uploadForm").style.display = "none";
+                document.getElementById("loading").style.display = "block";
+            }}
+        </script>
 
     </body>
     </html>
     """
 
 # ---------------------------
-# RESULT PAGE (WITH BACK OPTION)
+# RESULT PAGE
 # ---------------------------
 def render_result_page(original_kb, compressed_kb, percent, download_id):
     return f"""
@@ -137,7 +174,6 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
                 align-items: center;
                 height: 100vh;
             }}
-
             .card {{
                 background: white;
                 padding: 30px;
@@ -146,34 +182,28 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
                 box-shadow: 0 10px 25px rgba(0,0,0,0.1);
                 text-align: center;
             }}
-
-            .stat {{
-                margin: 8px 0;
-                font-size: 14px;
-            }}
-
+            .stat {{ margin: 8px 0; font-size: 14px; }}
             .download {{
                 background: #16a34a;
                 color: white;
-                border: none;
                 border-radius: 6px;
                 padding: 10px;
                 width: 100%;
                 font-size: 15px;
-                cursor: pointer;
                 margin-top: 18px;
+                border: none;
+                cursor: pointer;
             }}
-
             .back {{
                 background: #2563eb;
                 color: white;
-                border: none;
                 border-radius: 6px;
                 padding: 10px;
                 width: 100%;
                 font-size: 14px;
-                cursor: pointer;
                 margin-top: 10px;
+                border: none;
+                cursor: pointer;
             }}
         </style>
     </head>
@@ -185,14 +215,10 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
             <div class="stat">Reduced by: <strong>{percent}%</strong></div>
 
             <form action="/download/{download_id}" method="get">
-                <button class="download" type="submit">
-                    Download Compressed PDF
-                </button>
+                <button class="download">Download Compressed PDF</button>
             </form>
 
-            <button class="back" onclick="history.back()">
-                ⬅ Compress Another PDF
-            </button>
+            <button class="back" onclick="history.back()">⬅ Compress Another PDF</button>
         </div>
     </body>
     </html>
@@ -285,21 +311,8 @@ def compress(background_tasks: BackgroundTasks,
     if target_kb < min_allowed_kb:
         background_tasks.add_task(cleanup, work_dir)
         return HTMLResponse(
-            content=f"""
-            <html>
-            <body style="font-family:Arial;background:#f5f7fa;
-            display:flex;justify-content:center;align-items:center;height:100vh;">
-            <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
-                <h2>Target Size Too Small</h2>
-                <p>Please choose at least <strong>{min_allowed_kb} KB</strong>.</p>
-                <button onclick="history.back()" style="padding:10px;width:100%;margin-top:10px;">
-                    Go Back
-                </button>
-            </div>
-            </body>
-            </html>
-            """,
-            status_code=400,
+            f"<p style='text-align:center;'>Target too small. Minimum allowed: {min_allowed_kb} KB</p>",
+            status_code=400
         )
 
     output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
