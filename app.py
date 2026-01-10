@@ -143,7 +143,6 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
 # ROUTES
 # ---------------------------
 
-# Custom (clean UI)
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_page(
@@ -206,7 +205,7 @@ def cleanup(path: str):
         pass
 
 # ---------------------------
-# COMPRESSION
+# COMPRESSION ENDPOINT
 # ---------------------------
 @app.post("/compress", response_class=HTMLResponse)
 def compress(background_tasks: BackgroundTasks,
@@ -216,11 +215,44 @@ def compress(background_tasks: BackgroundTasks,
     work_dir = tempfile.mkdtemp()
     input_path = os.path.join(work_dir, file.filename)
 
-    output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
-    os.close(output_fd)
-
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
+
+    original_kb = math.ceil(os.path.getsize(input_path) / 1024)
+
+    # ---- MINIMUM TARGET VALIDATION ----
+    MIN_ABSOLUTE_KB = 50
+    MIN_PERCENT = 0.10  # 10%
+
+    min_allowed_kb = max(MIN_ABSOLUTE_KB, math.ceil(original_kb * MIN_PERCENT))
+
+    if target_kb < min_allowed_kb:
+        background_tasks.add_task(cleanup, work_dir)
+        return HTMLResponse(
+            content=f"""
+            <html>
+            <body style="font-family:Arial;background:#f5f7fa;display:flex;justify-content:center;align-items:center;height:100vh;">
+                <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
+                    <h2>Target Size Too Small</h2>
+                    <p>
+                        This PDF cannot be compressed to <strong>{target_kb} KB</strong>.
+                    </p>
+                    <p>
+                        Please choose at least <strong>{min_allowed_kb} KB</strong>.
+                    </p>
+                    <button onclick="history.back()" style="margin-top:15px;padding:10px;width:100%;">
+                        Go Back
+                    </button>
+                </div>
+            </body>
+            </html>
+            """,
+            status_code=400,
+        )
+
+    # ---- COMPRESSION ----
+    output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
+    os.close(output_fd)
 
     subprocess.run(
         [
@@ -234,7 +266,6 @@ def compress(background_tasks: BackgroundTasks,
         text=True,
     )
 
-    original_kb = math.ceil(os.path.getsize(input_path) / 1024)
     compressed_kb = math.ceil(os.path.getsize(output_path) / 1024)
     percent = round((1 - compressed_kb / original_kb) * 100, 1)
 
