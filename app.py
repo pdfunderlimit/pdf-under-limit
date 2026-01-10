@@ -10,10 +10,14 @@ import math
 app = FastAPI()
 
 # ---------------------------
-# HTML PAGE RENDERER (UPLOAD)
+# HTML PAGE RENDERER
 # ---------------------------
-def render_page(title, heading, intro, default_kb, readonly=True):
+def render_page(title, heading, intro, default_kb, readonly=True, show_hint=True):
     readonly_attr = "readonly" if readonly else ""
+    hint_html = (
+        f'<div class="hint">Target size: under <strong>{default_kb} KB</strong></div>'
+        if show_hint else ""
+    )
 
     return f"""
     <!DOCTYPE html>
@@ -67,9 +71,7 @@ def render_page(title, heading, intro, default_kb, readonly=True):
         <div class="card">
             <h2>{heading}</h2>
             <p>{intro}</p>
-            <div class="hint">
-                Target size: under <strong>{default_kb} KB</strong>
-            </div>
+            {hint_html}
             <form action="/compress" method="post" enctype="multipart/form-data">
                 <input type="file" name="file" accept="application/pdf" required>
                 <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
@@ -81,7 +83,7 @@ def render_page(title, heading, intro, default_kb, readonly=True):
     """
 
 # ---------------------------
-# RESULT PAGE (AFTER COMPRESS)
+# RESULT PAGE
 # ---------------------------
 def render_result_page(original_kb, compressed_kb, percent, download_id):
     return f"""
@@ -129,7 +131,6 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
             <div class="stat">Original size: <strong>{original_kb} KB</strong></div>
             <div class="stat">Compressed size: <strong>{compressed_kb} KB</strong></div>
             <div class="stat">Reduced by: <strong>{percent}%</strong></div>
-
             <form action="/download/{download_id}" method="get">
                 <button type="submit">Download Compressed PDF</button>
             </form>
@@ -142,14 +143,16 @@ def render_result_page(original_kb, compressed_kb, percent, download_id):
 # ROUTES
 # ---------------------------
 
+# Custom (clean UI)
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_page(
         "Compress PDF Online – Custom Size",
         "Compress PDF to Any Size",
-        "Reduce PDF size to any required limit like 777 KB, 998 KB, or 1000 KB. Output will be under the target size.",
+        "Reduce PDF size to any required limit.",
         500,
-        readonly=False
+        readonly=False,
+        show_hint=False
     )
 
 @app.get("/passport-pdf-size", response_class=HTMLResponse)
@@ -189,7 +192,7 @@ def pdf_500kb():
     )
 
 # ---------------------------
-# TEMP STORAGE FOR DOWNLOADS
+# TEMP STORAGE
 # ---------------------------
 DOWNLOADS = {}
 
@@ -203,7 +206,7 @@ def cleanup(path: str):
         pass
 
 # ---------------------------
-# COMPRESSION ENDPOINT
+# COMPRESSION
 # ---------------------------
 @app.post("/compress", response_class=HTMLResponse)
 def compress(background_tasks: BackgroundTasks,
@@ -248,7 +251,7 @@ def compress(background_tasks: BackgroundTasks,
     )
 
 # ---------------------------
-# DOWNLOAD ENDPOINT
+# DOWNLOAD
 # ---------------------------
 @app.get("/download/{download_id}")
 def download(download_id: str, background_tasks: BackgroundTasks):
