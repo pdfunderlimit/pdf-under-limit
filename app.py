@@ -4,11 +4,13 @@ import shutil
 import tempfile
 import os
 import subprocess
+import uuid
+import math
 
 app = FastAPI()
 
 # ---------------------------
-# HTML PAGE RENDERER
+# HTML PAGE RENDERER (UPLOAD)
 # ---------------------------
 def render_page(title, heading, intro, default_kb, readonly=True):
     readonly_attr = "readonly" if readonly else ""
@@ -79,10 +81,67 @@ def render_page(title, heading, intro, default_kb, readonly=True):
     """
 
 # ---------------------------
-# ROUTES (ORDERED LOGICALLY)
+# RESULT PAGE (AFTER COMPRESS)
+# ---------------------------
+def render_result_page(original_kb, compressed_kb, percent, download_id):
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Compression Result</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                background: #f5f7fa;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+            }}
+            .card {{
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                width: 360px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+                text-align: center;
+            }}
+            .stat {{
+                margin: 8px 0;
+                font-size: 14px;
+            }}
+            button {{
+                margin-top: 20px;
+                padding: 10px;
+                width: 100%;
+                background: #16a34a;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 15px;
+                cursor: pointer;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>Compression Complete</h2>
+            <div class="stat">Original size: <strong>{original_kb} KB</strong></div>
+            <div class="stat">Compressed size: <strong>{compressed_kb} KB</strong></div>
+            <div class="stat">Reduced by: <strong>{percent}%</strong></div>
+
+            <form action="/download/{download_id}" method="get">
+                <button type="submit">Download Compressed PDF</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """
+
+# ---------------------------
+# ROUTES
 # ---------------------------
 
-# 1️⃣ Custom / Homepage
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_page(
@@ -93,7 +152,6 @@ def home():
         readonly=False
     )
 
-# 2️⃣ Passport (Most strict)
 @app.get("/passport-pdf-size", response_class=HTMLResponse)
 def passport_pdf():
     return render_page(
@@ -103,7 +161,6 @@ def passport_pdf():
         100
     )
 
-# 3️⃣ 200 KB
 @app.get("/compress-pdf-200kb", response_class=HTMLResponse)
 def pdf_200kb():
     return render_page(
@@ -113,7 +170,6 @@ def pdf_200kb():
         200
     )
 
-# 4️⃣ Government forms (state-agnostic)
 @app.get("/government-form-pdf", response_class=HTMLResponse)
 def govt_pdf():
     return render_page(
@@ -123,7 +179,6 @@ def govt_pdf():
         300
     )
 
-# 5️⃣ 500 KB
 @app.get("/compress-pdf-500kb", response_class=HTMLResponse)
 def pdf_500kb():
     return render_page(
@@ -134,8 +189,10 @@ def pdf_500kb():
     )
 
 # ---------------------------
-# CLEANUP LOGIC (DO NOT TOUCH)
+# TEMP STORAGE FOR DOWNLOADS
 # ---------------------------
+DOWNLOADS = {}
+
 def cleanup(path: str):
     try:
         if os.path.isfile(path):
@@ -148,26 +205,21 @@ def cleanup(path: str):
 # ---------------------------
 # COMPRESSION ENDPOINT
 # ---------------------------
-@app.post("/compress")
-def compress(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    target_kb: int = Form(...)
-):
-    # Create temp working directory
+@app.post("/compress", response_class=HTMLResponse)
+def compress(background_tasks: BackgroundTasks,
+             file: UploadFile = File(...),
+             target_kb: int = Form(...)):
+
     work_dir = tempfile.mkdtemp()
     input_path = os.path.join(work_dir, file.filename)
 
-    # Output file must persist until response finishes
     output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
     os.close(output_fd)
 
-    # Save uploaded file
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # Run compression engine
-    result = subprocess.run(
+    subprocess.run(
         [
             "python3",
             os.path.join(os.getcwd(), "compress_safe.py"),
@@ -179,22 +231,39 @@ def compress(
         text=True,
     )
 
-    # Validate result
-    if result.returncode not in (0, 2) or not os.path.exists(output_path):
-        cleanup(work_dir)
-        cleanup(output_path)
-        return {
-            "error": "Compression failed",
-            "details": result.stdout + result.stderr,
-        }
+    original_kb = math.ceil(os.path.getsize(input_path) / 1024)
+    compressed_kb = math.ceil(os.path.getsize(output_path) / 1024)
+    percent = round((1 - compressed_kb / original_kb) * 100, 1)
 
-    # Cleanup after response
+    download_id = str(uuid.uuid4())
+    DOWNLOADS[download_id] = output_path
+
     background_tasks.add_task(cleanup, work_dir)
-    background_tasks.add_task(cleanup, output_path)
+
+    return render_result_page(
+        original_kb,
+        compressed_kb,
+        percent,
+        download_id
+    )
+
+# ---------------------------
+# DOWNLOAD ENDPOINT
+# ---------------------------
+@app.get("/download/{download_id}")
+def download(download_id: str, background_tasks: BackgroundTasks):
+    path = DOWNLOADS.pop(download_id, None)
+    if not path or not os.path.exists(path):
+        return {"error": "File expired"}
+
+    size_kb = math.ceil(os.path.getsize(path) / 1024)
+    filename = f"compressed_{size_kb}kb.pdf"
+
+    background_tasks.add_task(cleanup, path)
 
     return FileResponse(
-        output_path,
+        path,
         media_type="application/pdf",
-        filename="compressed.pdf",
+        filename=filename,
         background=background_tasks,
     )
