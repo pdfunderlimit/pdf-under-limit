@@ -4,10 +4,13 @@ import shutil
 import tempfile
 import os
 import subprocess
-import uuid
 
 app = FastAPI()
-def render_page(title, heading, intro):
+
+# ---------------------------
+# HTML PAGE RENDERER
+# ---------------------------
+def render_page(title, heading, intro, default_kb):
     return f"""
     <!DOCTYPE html>
     <html>
@@ -31,13 +34,21 @@ def render_page(title, heading, intro):
                 box-shadow: 0 10px 25px rgba(0,0,0,0.1);
                 text-align: center;
             }}
-            h2 {{ margin-bottom: 10px; }}
+            h2 {{ margin-bottom: 8px; }}
             p {{ font-size: 14px; color: #555; }}
+            .hint {{
+                font-size: 13px;
+                color: #2563eb;
+                margin-bottom: 10px;
+            }}
             input, button {{
                 width: 100%;
                 margin-top: 12px;
                 padding: 10px;
                 font-size: 14px;
+            }}
+            input[readonly] {{
+                background: #f1f5f9;
             }}
             button {{
                 background: #4f46e5;
@@ -52,9 +63,10 @@ def render_page(title, heading, intro):
         <div class="card">
             <h2>{heading}</h2>
             <p>{intro}</p>
+            <div class="hint">Target size: under <strong>{default_kb} KB</strong></div>
             <form action="/compress" method="post" enctype="multipart/form-data">
                 <input type="file" name="file" accept="application/pdf" required>
-                <input type="number" name="target_kb" placeholder="Target size (KB)" required>
+                <input type="number" name="target_kb" value="{default_kb}" readonly>
                 <button type="submit">Compress PDF</button>
             </form>
         </div>
@@ -62,12 +74,17 @@ def render_page(title, heading, intro):
     </html>
     """
 
+# ---------------------------
+# SEO ROUTES
+# ---------------------------
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_page(
         "Compress PDF Online – Free Tool",
         "Compress PDF Online",
-        "Reduce PDF size instantly for uploads and forms."
+        "Reduce PDF size instantly for uploads and forms.",
+        300
     )
 
 @app.get("/compress-pdf-200kb", response_class=HTMLResponse)
@@ -75,7 +92,8 @@ def pdf_200kb():
     return render_page(
         "Compress PDF to 200KB Online – Free & Instant",
         "Compress PDF to 200KB",
-        "Reduce PDF size below 200KB for government forms and applications."
+        "Reduce PDF size below 200KB for government forms and applications.",
+        200
     )
 
 @app.get("/compress-pdf-500kb", response_class=HTMLResponse)
@@ -83,7 +101,8 @@ def pdf_500kb():
     return render_page(
         "Compress PDF to 500KB Online – Free & Secure",
         "Compress PDF to 500KB",
-        "Reduce PDF size to 500KB for online uploads and submissions."
+        "Reduce PDF size to 500KB for online uploads and submissions.",
+        500
     )
 
 @app.get("/passport-pdf-size", response_class=HTMLResponse)
@@ -91,7 +110,8 @@ def passport_pdf():
     return render_page(
         "Passport PDF Size Less Than 100KB – Free Online Tool",
         "Reduce Passport PDF Size",
-        "Compress passport PDF below 100KB for online applications."
+        "Compress passport PDF below 100KB for online applications.",
+        100
     )
 
 @app.get("/government-form-pdf", response_class=HTMLResponse)
@@ -99,9 +119,13 @@ def govt_pdf():
     return render_page(
         "Compress PDF for Government Forms – Free & Easy",
         "Compress PDF for Government Forms",
-        "Fix PDF size errors for government form uploads instantly."
+        "Reduce PDF size under 300KB for government form uploads across states.",
+        300
     )
 
+# ---------------------------
+# CLEANUP LOGIC (DO NOT TOUCH)
+# ---------------------------
 def cleanup(path: str):
     try:
         if os.path.isfile(path):
@@ -111,18 +135,20 @@ def cleanup(path: str):
     except Exception:
         pass
 
+# ---------------------------
+# COMPRESSION ENDPOINT
+# ---------------------------
 @app.post("/compress")
 def compress(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     target_kb: int = Form(...)
 ):
-    # Create temp working directory (manual, not auto-deleting)
+    # Create temp working directory
     work_dir = tempfile.mkdtemp()
-
     input_path = os.path.join(work_dir, file.filename)
 
-    # IMPORTANT: output file must NOT be auto-deleted
+    # Output file must persist until download finishes
     output_fd, output_path = tempfile.mkstemp(suffix=".pdf")
     os.close(output_fd)
 
@@ -130,7 +156,7 @@ def compress(
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # Call compression engine
+    # Run compression
     result = subprocess.run(
         [
             "python3",
@@ -143,7 +169,7 @@ def compress(
         text=True,
     )
 
-    # Validate result
+    # Validate compression
     if result.returncode not in (0, 2) or not os.path.exists(output_path):
         cleanup(work_dir)
         cleanup(output_path)
@@ -152,7 +178,7 @@ def compress(
             "details": result.stdout + result.stderr,
         }
 
-    # Cleanup AFTER response is sent
+    # Cleanup after response
     background_tasks.add_task(cleanup, work_dir)
     background_tasks.add_task(cleanup, output_path)
 
