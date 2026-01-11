@@ -5,46 +5,22 @@ import shutil, tempfile, os, subprocess, uuid, math
 app = FastAPI()
 
 # ---------------------------
-# FAQ RENDERER (BILINGUAL)
-# ---------------------------
-def render_faq(faqs):
-    items = ""
-    for mr_q, en_q, mr_a, en_a in faqs:
-        items += f"""
-        <div class="faq-item">
-            <button class="faq-question"
-                onclick="this.nextElementSibling.classList.toggle('open')">
-                <div class="mr">{mr_q}</div>
-                <div class="en">{en_q}</div>
-            </button>
-            <div class="faq-answer">
-                <div class="mr">{mr_a}</div>
-                <div class="en">{en_a}</div>
-            </div>
-        </div>
-        """
-    return f"""
-    <div class="faq">
-        <h3>
-          नेहमी विचारले जाणारे प्रश्न
-          <div class="en">Frequently Asked Questions</div>
-        </h3>
-        {items}
-    </div>
-    """
-
-# ---------------------------
 # PAGE RENDERER
 # ---------------------------
-def render_page(title, mr_heading, en_heading,
-                mr_intro, en_intro,
-                default_kb, request: Request,
-                faqs, readonly=True, show_hint=True):
-
+def render_page(
+    title,
+    mr_heading, en_heading,
+    mr_intro, en_intro,
+    default_kb,
+    request: Request,
+    readonly=True,
+    show_hint=True
+):
     path = request.url.path
     readonly_attr = "readonly" if readonly else ""
 
-    def active(p): return "active" if path == p else ""
+    def active(p): 
+        return "active" if path == p else ""
 
     hint_html = (
         f"""
@@ -79,16 +55,16 @@ body {{
 }}
 
 .mr {{
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.6;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.7;
     color: #111827;
 }}
 
 .en {{
-    font-size: 13px;
+    font-size: 14px;
     color: #374151;
-    line-height: 1.4;
+    line-height: 1.5;
 }}
 
 .nav {{
@@ -101,7 +77,7 @@ body {{
 .nav a {{
     text-decoration: none;
     font-size: 13px;
-    padding: 6px 12px;
+    padding: 6px 14px;
     border-radius: 20px;
     background: #e5e7eb;
     color: #111827;
@@ -116,7 +92,7 @@ body {{
     background: white;
     margin-top: 25px;
     padding: 28px;
-    border-radius: 12px;
+    border-radius: 14px;
     max-width: 380px;
     width: 100%;
     box-shadow: 0 10px 25px rgba(0,0,0,0.1);
@@ -126,7 +102,7 @@ body {{
 input, button {{
     width: 100%;
     margin-top: 12px;
-    padding: 11px;
+    padding: 12px;
     font-size: 14px;
 }}
 
@@ -138,7 +114,7 @@ button {{
     background: #4f46e5;
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
 }}
 
@@ -148,14 +124,14 @@ button .mr {{
 
 .loading {{
     display: none;
-    margin-top: 16px;
+    margin-top: 18px;
     color: #1e3a8a;
 }}
 
 .spinner {{
     margin: 10px auto;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border: 3px solid #c7d2fe;
     border-top: 3px solid #4f46e5;
     border-radius: 50%;
@@ -164,34 +140,6 @@ button .mr {{
 
 @keyframes spin {{
     to {{ transform: rotate(360deg); }}
-}}
-
-.faq {{
-    margin: 40px 0;
-    max-width: 380px;
-    width: 100%;
-}}
-
-.faq-question {{
-    width: 100%;
-    background: #eef2ff;
-    padding: 12px;
-    border: none;
-    text-align: left;
-    border-radius: 8px;
-    cursor: pointer;
-}}
-
-.faq-answer {{
-    display: none;
-    background: white;
-    padding: 12px;
-    margin-top: 6px;
-    border-radius: 8px;
-}}
-
-.faq-answer.open {{
-    display: block;
 }}
 </style>
 </head>
@@ -232,15 +180,13 @@ button .mr {{
     <div class="en">Compressing your PDF… please wait</div>
   </div>
 
-  <p class="mr" style="margin-top:14px;">
+  <p class="mr" style="margin-top:16px;">
     तुमची PDF फाईल कुठेही जतन केली जात नाही.
   </p>
   <p class="en">
     Your PDF files are not stored and are deleted automatically.
   </p>
 </div>
-
-{render_faq(faqs)}
 
 <script>
 function startLoading() {{
@@ -266,7 +212,6 @@ def home(request: Request):
         "कोणत्याही आवश्यक मर्यादेत PDF compress करा",
         "Reduce PDF size to any required limit",
         500, request,
-        faqs=[],
         readonly=False,
         show_hint=False
     )
@@ -279,8 +224,7 @@ def passport(request: Request):
         "Reduce Passport PDF Size",
         "पासपोर्ट अर्जासाठी PDF compress करा",
         "Compress PDF for passport applications",
-        100, request,
-        faqs=[]
+        100, request
     )
 
 @app.get("/compress-pdf-200kb", response_class=HTMLResponse)
@@ -291,8 +235,7 @@ def pdf200(request: Request):
         "Compress PDF to 200KB",
         "सरकारी फॉर्मसाठी PDF कमी करा",
         "Reduce PDF size below 200KB",
-        200, request,
-        faqs=[]
+        200, request
     )
 
 @app.get("/government-form-pdf", response_class=HTMLResponse)
@@ -303,8 +246,7 @@ def govt(request: Request):
         "Compress PDF for Government Forms",
         "राज्य व केंद्र सरकारी पोर्टलसाठी",
         "For state & central government portals",
-        300, request,
-        faqs=[]
+        300, request
     )
 
 @app.get("/compress-pdf-500kb", response_class=HTMLResponse)
@@ -315,8 +257,7 @@ def pdf500(request: Request):
         "Compress PDF to 500KB",
         "गुणवत्ता राखून PDF कमी करा",
         "Keep better quality while compressing",
-        500, request,
-        faqs=[]
+        500, request
     )
 
 # ---------------------------
@@ -338,14 +279,30 @@ def sitemap():
     )
 
 # ---------------------------
+# ROBOTS.TXT (FIXED)
+# ---------------------------
+@app.get("/robots.txt", response_class=Response)
+def robots():
+    return Response(
+        content="""User-agent: *
+Allow: /
+
+Sitemap: https://pdf-under-limit.onrender.com/sitemap.xml
+""",
+        media_type="text/plain"
+    )
+
+# ---------------------------
 # BACKEND LOGIC
 # ---------------------------
 DOWNLOADS = {}
 
 def cleanup(p):
     try:
-        if os.path.isfile(p): os.remove(p)
-        else: shutil.rmtree(p)
+        if os.path.isfile(p):
+            os.remove(p)
+        else:
+            shutil.rmtree(p)
     except:
         pass
 
@@ -387,7 +344,7 @@ def compress(bg: BackgroundTasks,
     return f"""
     <html><body style="font-family:Arial;background:#f5f7fa;
     display:flex;justify-content:center;align-items:center;padding:20px;">
-    <div style="background:white;padding:30px;border-radius:12px;
+    <div style="background:white;padding:30px;border-radius:14px;
     max-width:380px;width:100%;text-align:center;">
     <div class="mr">PDF compress पूर्ण झाले</div>
     <div class="en">Compression Complete</div>
@@ -403,7 +360,7 @@ def compress(bg: BackgroundTasks,
 
     <form action="/download/{did}">
       <button style="background:#16a34a;color:white;padding:12px;
-      width:100%;border:none;border-radius:8px;">
+      width:100%;border:none;border-radius:10px;">
       <div class="mr">PDF डाउनलोड करा</div>
       <div class="en">Download PDF</div>
       </button>
@@ -411,7 +368,7 @@ def compress(bg: BackgroundTasks,
 
     <button onclick="window.location.href='/'"
       style="margin-top:12px;padding:12px;width:100%;
-      background:#4f46e5;color:white;border:none;border-radius:8px;">
+      background:#4f46e5;color:white;border:none;border-radius:10px;">
       <div class="mr">दुसरी PDF compress करा</div>
       <div class="en">Compress another PDF</div>
     </button>
