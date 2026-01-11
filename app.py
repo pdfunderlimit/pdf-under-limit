@@ -63,6 +63,10 @@ def render_page(title, mr_heading, en_heading,
 <meta name="description" content="{en_intro}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- GOOGLE SEARCH CONSOLE VERIFICATION -->
+<meta name="google-site-verification"
+      content="8KCKN-K8i1pT9hfLJb8nGYcLfU0P6z7rHwIG5aox2Q4">
+
 <style>
 body {{
     font-family: "Noto Sans Devanagari", "Mangal", "Kalimati", "Kokila", Arial, sans-serif;
@@ -316,33 +320,18 @@ def pdf500(request: Request):
     )
 
 # ---------------------------
-# SITEMAP.XML (SEO STEP 3)
+# SITEMAP.XML
 # ---------------------------
 @app.get("/sitemap.xml", response_class=Response)
 def sitemap():
     return Response(
         content="""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://pdf-under-limit.onrender.com/</loc>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://pdf-under-limit.onrender.com/passport-pdf-size</loc>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pdf-under-limit.onrender.com/compress-pdf-200kb</loc>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pdf-under-limit.onrender.com/government-form-pdf</loc>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pdf-under-limit.onrender.com/compress-pdf-500kb</loc>
-    <priority>0.9</priority>
-  </url>
+  <url><loc>https://pdf-under-limit.onrender.com/</loc></url>
+  <url><loc>https://pdf-under-limit.onrender.com/passport-pdf-size</loc></url>
+  <url><loc>https://pdf-under-limit.onrender.com/compress-pdf-200kb</loc></url>
+  <url><loc>https://pdf-under-limit.onrender.com/government-form-pdf</loc></url>
+  <url><loc>https://pdf-under-limit.onrender.com/compress-pdf-500kb</loc></url>
 </urlset>
 """,
         media_type="application/xml"
