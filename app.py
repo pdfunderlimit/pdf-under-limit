@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 import shutil, tempfile, os, subprocess, uuid, math
 
 app = FastAPI()
@@ -203,8 +203,8 @@ button .mr {{
 </div>
 
 <div class="card">
-  <div class="mr">{mr_heading}</div>
-  <div class="en">{en_heading}</div>
+  <h1 class="mr">{mr_heading}</h1>
+  <h2 class="en">{en_heading}</h2>
 
   <p class="mr">{mr_intro}</p>
   <p class="en">{en_intro}</p>
@@ -227,6 +227,13 @@ button .mr {{
     <div class="mr">PDF compress होत आहे… कृपया थांबा</div>
     <div class="en">Compressing your PDF… please wait</div>
   </div>
+
+  <p class="mr" style="margin-top:14px;">
+    तुमची PDF फाईल कुठेही जतन केली जात नाही.
+  </p>
+  <p class="en">
+    Your PDF files are not stored and are deleted automatically.
+  </p>
 </div>
 
 {render_faq(faqs)}
@@ -249,16 +256,13 @@ function startLoading() {{
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return render_page(
-        "Compress PDF Online",
+        "Compress PDF Online – Free Tool",
         "तुमची PDF आवश्यक आकारात कमी करा",
         "Compress PDF to Any Size",
         "कोणत्याही आवश्यक मर्यादेत PDF compress करा",
         "Reduce PDF size to any required limit",
         500, request,
-        faqs=[
-            ("हे टूल मोफत आहे का?", "Is this tool free?",
-             "होय, हे टूल पूर्णपणे मोफत आहे.", "Yes, this tool is completely free."),
-        ],
+        faqs=[],
         readonly=False,
         show_hint=False
     )
@@ -266,7 +270,7 @@ def home(request: Request):
 @app.get("/passport-pdf-size", response_class=HTMLResponse)
 def passport(request: Request):
     return render_page(
-        "Passport PDF < 100KB",
+        "Passport PDF Size Less Than 100KB",
         "पासपोर्ट PDF 100 KB पेक्षा कमी करा",
         "Reduce Passport PDF Size",
         "पासपोर्ट अर्जासाठी PDF compress करा",
@@ -290,7 +294,7 @@ def pdf200(request: Request):
 @app.get("/government-form-pdf", response_class=HTMLResponse)
 def govt(request: Request):
     return render_page(
-        "Govt Form PDF Compression",
+        "Compress PDF for Government Forms",
         "सरकारी फॉर्मसाठी PDF compress करा",
         "Compress PDF for Government Forms",
         "राज्य व केंद्र सरकारी पोर्टलसाठी",
@@ -312,6 +316,39 @@ def pdf500(request: Request):
     )
 
 # ---------------------------
+# SITEMAP.XML (SEO STEP 3)
+# ---------------------------
+@app.get("/sitemap.xml", response_class=Response)
+def sitemap():
+    return Response(
+        content="""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://pdf-under-limit.onrender.com/</loc>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://pdf-under-limit.onrender.com/passport-pdf-size</loc>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://pdf-under-limit.onrender.com/compress-pdf-200kb</loc>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://pdf-under-limit.onrender.com/government-form-pdf</loc>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://pdf-under-limit.onrender.com/compress-pdf-500kb</loc>
+    <priority>0.9</priority>
+  </url>
+</urlset>
+""",
+        media_type="application/xml"
+    )
+
+# ---------------------------
 # BACKEND LOGIC
 # ---------------------------
 DOWNLOADS = {}
@@ -320,7 +357,8 @@ def cleanup(p):
     try:
         if os.path.isfile(p): os.remove(p)
         else: shutil.rmtree(p)
-    except: pass
+    except:
+        pass
 
 @app.post("/compress", response_class=HTMLResponse)
 def compress(bg: BackgroundTasks,
@@ -333,8 +371,8 @@ def compress(bg: BackgroundTasks,
     with open(inp, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    orig_kb = math.ceil(os.path.getsize(inp)/1024)
-    min_kb = max(50, math.ceil(orig_kb*0.1))
+    orig_kb = math.ceil(os.path.getsize(inp) / 1024)
+    min_kb = max(50, math.ceil(orig_kb * 0.1))
 
     if target_kb < min_kb:
         bg.add_task(cleanup, work)
@@ -350,8 +388,8 @@ def compress(bg: BackgroundTasks,
         ["python3", "compress_safe.py", inp, out, str(target_kb)]
     )
 
-    comp_kb = math.ceil(os.path.getsize(out)/1024)
-    pct = round((1 - comp_kb/orig_kb)*100, 1)
+    comp_kb = math.ceil(os.path.getsize(out) / 1024)
+    pct = round((1 - comp_kb / orig_kb) * 100, 1)
 
     did = str(uuid.uuid4())
     DOWNLOADS[did] = out
@@ -397,7 +435,7 @@ def download(did: str, bg: BackgroundTasks):
     if not path or not os.path.exists(path):
         return {"error": "Expired"}
 
-    size = math.ceil(os.path.getsize(path)/1024)
+    size = math.ceil(os.path.getsize(path) / 1024)
     bg.add_task(cleanup, path)
 
     return FileResponse(
