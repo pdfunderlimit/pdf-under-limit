@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
-import shutil, tempfile, os, subprocess, uuid, math
+from PIL import Image
+import shutil, tempfile, os, subprocess, uuid, math, io
 
 app = FastAPI()
 
@@ -13,13 +14,15 @@ def render_page(
     mr_intro, en_intro,
     default_kb,
     request: Request,
+    action,
+    accept,
     readonly=True,
     show_hint=True
 ):
     path = request.url.path
     readonly_attr = "readonly" if readonly else ""
 
-    def active(p): 
+    def active(p):
         return "active" if path == p else ""
 
     hint_html = (
@@ -39,33 +42,21 @@ def render_page(
 <meta name="description" content="{en_intro}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- GOOGLE SEARCH CONSOLE VERIFICATION -->
 <meta name="google-site-verification"
       content="8KCKN-K8i1pT9hfLJb8nGYcLfU0P6z7rHwIG5aox2Q4">
 
 <style>
 body {{
-    font-family: "Noto Sans Devanagari", "Mangal", "Kalimati", "Kokila", Arial, sans-serif;
+    font-family: "Noto Sans Devanagari", "Mangal", Arial, sans-serif;
     background: #f5f7fa;
-    margin: 0;
     padding: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
 }}
 
-.mr {{
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1.7;
-    color: #111827;
-}}
-
-.en {{
-    font-size: 14px;
-    color: #374151;
-    line-height: 1.5;
-}}
+.mr {{ font-size: 17px; font-weight: 700; }}
+.en {{ font-size: 14px; color: #374151; }}
 
 .nav {{
     display: flex;
@@ -76,11 +67,11 @@ body {{
 
 .nav a {{
     text-decoration: none;
-    font-size: 13px;
     padding: 6px 14px;
     border-radius: 20px;
     background: #e5e7eb;
     color: #111827;
+    font-size: 13px;
 }}
 
 .nav a.active, .nav a:hover {{
@@ -106,28 +97,16 @@ input, button {{
     font-size: 14px;
 }}
 
-input[readonly] {{
-    background: #f1f5f9;
-}}
+input[readonly] {{ background: #f1f5f9; }}
 
 button {{
     background: #4f46e5;
     color: white;
     border: none;
     border-radius: 10px;
-    cursor: pointer;
 }}
 
-button .mr {{
-    color: white;
-}}
-
-.loading {{
-    display: none;
-    margin-top: 18px;
-    color: #1e3a8a;
-}}
-
+.loading {{ display: none; margin-top: 18px; }}
 .spinner {{
     margin: 10px auto;
     width: 28px;
@@ -138,20 +117,15 @@ button .mr {{
     animation: spin 1s linear infinite;
 }}
 
-@keyframes spin {{
-    to {{ transform: rotate(360deg); }}
-}}
+@keyframes spin {{ to {{ transform: rotate(360deg); }} }}
 </style>
 </head>
 
 <body>
 
 <div class="nav">
-  <a href="/passport-pdf-size" class="{active('/passport-pdf-size')}">Passport</a>
-  <a href="/compress-pdf-200kb" class="{active('/compress-pdf-200kb')}">200 KB</a>
-  <a href="/government-form-pdf" class="{active('/government-form-pdf')}">Govt Forms</a>
-  <a href="/compress-pdf-500kb" class="{active('/compress-pdf-500kb')}">500 KB</a>
-  <a href="/" class="{active('/')}">Custom</a>
+  <a href="/" class="{active('/')}">PDF</a>
+  <a href="/compress-image" class="{active('/compress-image')}">🖼️ Image</a>
 </div>
 
 <div class="card">
@@ -163,36 +137,29 @@ button .mr {{
 
   {hint_html}
 
-  <form id="uploadForm" action="/compress" method="post"
+  <form id="form" action="{action}" method="post"
         enctype="multipart/form-data" onsubmit="startLoading()">
-    <input type="file" name="file" accept="application/pdf" required>
+    <input type="file" name="file" accept="{accept}" required>
     <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
 
-    <button id="submitBtn">
-      <div class="mr">PDF compress करा</div>
-      <div class="en">Compress PDF</div>
+    <button id="btn">
+      <div class="mr">Compress करा</div>
+      <div class="en">Compress</div>
     </button>
   </form>
 
   <div class="loading" id="loading">
     <div class="spinner"></div>
-    <div class="mr">PDF compress होत आहे… कृपया थांबा</div>
-    <div class="en">Compressing your PDF… please wait</div>
+    <div class="mr">प्रक्रिया सुरू आहे…</div>
+    <div class="en">Processing…</div>
   </div>
-
-  <p class="mr" style="margin-top:16px;">
-    तुमची PDF फाईल कुठेही जतन केली जात नाही.
-  </p>
-  <p class="en">
-    Your PDF files are not stored and are deleted automatically.
-  </p>
 </div>
 
 <script>
 function startLoading() {{
-    document.getElementById("submitBtn").disabled = true;
-    document.getElementById("uploadForm").style.display = "none";
-    document.getElementById("loading").style.display = "block";
+  document.getElementById("btn").disabled = true;
+  document.getElementById("form").style.display = "none";
+  document.getElementById("loading").style.display = "block";
 }}
 </script>
 
@@ -201,115 +168,95 @@ function startLoading() {{
 """
 
 # ---------------------------
-# ROUTES
+# PDF HOME
 # ---------------------------
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
+def pdf_home(request: Request):
     return render_page(
-        "Compress PDF Online – Free Tool",
-        "तुमची PDF आवश्यक आकारात कमी करा",
-        "Compress PDF to Any Size",
-        "कोणत्याही आवश्यक मर्यादेत PDF compress करा",
-        "Reduce PDF size to any required limit",
-        500, request,
+        "Compress PDF Online",
+        "PDF Compress करा",
+        "Compress PDF",
+        "PDF आवश्यक आकारात कमी करा",
+        "Reduce PDF size",
+        500,
+        request,
+        "/compress-pdf",
+        "application/pdf",
         readonly=False,
         show_hint=False
     )
 
-@app.get("/passport-pdf-size", response_class=HTMLResponse)
-def passport(request: Request):
+# ---------------------------
+# IMAGE PAGE
+# ---------------------------
+@app.get("/compress-image", response_class=HTMLResponse)
+def image_page(request: Request):
     return render_page(
-        "Passport PDF Size Less Than 100KB",
-        "पासपोर्ट PDF 100 KB पेक्षा कमी करा",
-        "Reduce Passport PDF Size",
-        "पासपोर्ट अर्जासाठी PDF compress करा",
-        "Compress PDF for passport applications",
-        100, request
-    )
-
-@app.get("/compress-pdf-200kb", response_class=HTMLResponse)
-def pdf200(request: Request):
-    return render_page(
-        "Compress PDF to 200KB",
-        "PDF 200 KB पर्यंत compress करा",
-        "Compress PDF to 200KB",
-        "सरकारी फॉर्मसाठी PDF कमी करा",
-        "Reduce PDF size below 200KB",
-        200, request
-    )
-
-@app.get("/government-form-pdf", response_class=HTMLResponse)
-def govt(request: Request):
-    return render_page(
-        "Compress PDF for Government Forms",
-        "सरकारी फॉर्मसाठी PDF compress करा",
-        "Compress PDF for Government Forms",
-        "राज्य व केंद्र सरकारी पोर्टलसाठी",
-        "For state & central government portals",
-        300, request
-    )
-
-@app.get("/compress-pdf-500kb", response_class=HTMLResponse)
-def pdf500(request: Request):
-    return render_page(
-        "Compress PDF to 500KB",
-        "PDF 500 KB पर्यंत compress करा",
-        "Compress PDF to 500KB",
-        "गुणवत्ता राखून PDF कमी करा",
-        "Keep better quality while compressing",
-        500, request
+        "Compress Image Online",
+        "Image Compress करा",
+        "Compress Image",
+        "JPG / PNG फोटो कमी करा",
+        "Reduce image size",
+        100,
+        request,
+        "/compress-image",
+        "image/jpeg,image/png",
+        readonly=False,
+        show_hint=False
     )
 
 # ---------------------------
-# SITEMAP.XML
+# IMAGE COMPRESSION
 # ---------------------------
-@app.get("/sitemap.xml", response_class=Response)
-def sitemap():
-    return Response(
-        content="""<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://pdf-under-limit.onrender.com/</loc></url>
-  <url><loc>https://pdf-under-limit.onrender.com/passport-pdf-size</loc></url>
-  <url><loc>https://pdf-under-limit.onrender.com/compress-pdf-200kb</loc></url>
-  <url><loc>https://pdf-under-limit.onrender.com/government-form-pdf</loc></url>
-  <url><loc>https://pdf-under-limit.onrender.com/compress-pdf-500kb</loc></url>
-</urlset>
-""",
-        media_type="application/xml"
+@app.post("/compress-image", response_class=HTMLResponse)
+def compress_image(bg: BackgroundTasks,
+                   file: UploadFile = File(...),
+                   target_kb: int = Form(...)):
+
+    if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
+        return HTMLResponse("Invalid image format", status_code=400)
+
+    img = Image.open(file.file)
+    img = img.convert("RGB")
+
+    orig_buf = io.BytesIO()
+    img.save(orig_buf, format="JPEG", quality=95)
+    orig_kb = math.ceil(len(orig_buf.getvalue()) / 1024)
+
+    min_kb = max(30, math.ceil(orig_kb * 0.1))
+    if target_kb < min_kb:
+        return HTMLResponse(
+            f"Minimum allowed: {min_kb} KB", status_code=400
+        )
+
+    quality = 90
+    out_buf = io.BytesIO()
+
+    while quality >= 20:
+        out_buf.seek(0)
+        out_buf.truncate(0)
+        img.save(out_buf, format="JPEG", quality=quality)
+        size_kb = len(out_buf.getvalue()) / 1024
+        if size_kb <= target_kb:
+            break
+        quality -= 5
+
+    fname = f"compressed_{math.ceil(size_kb)}kb.jpg"
+    bg.add_task(out_buf.close)
+
+    return FileResponse(
+        io.BytesIO(out_buf.getvalue()),
+        media_type="image/jpeg",
+        filename=fname
     )
 
 # ---------------------------
-# ROBOTS.TXT (FIXED)
+# PDF COMPRESSION (existing)
 # ---------------------------
-@app.get("/robots.txt", response_class=Response)
-def robots():
-    return Response(
-        content="""User-agent: *
-Allow: /
-
-Sitemap: https://pdf-under-limit.onrender.com/sitemap.xml
-""",
-        media_type="text/plain"
-    )
-
-# ---------------------------
-# BACKEND LOGIC
-# ---------------------------
-DOWNLOADS = {}
-
-def cleanup(p):
-    try:
-        if os.path.isfile(p):
-            os.remove(p)
-        else:
-            shutil.rmtree(p)
-    except:
-        pass
-
-@app.post("/compress", response_class=HTMLResponse)
-def compress(bg: BackgroundTasks,
-             file: UploadFile = File(...),
-             target_kb: int = Form(...)):
+@app.post("/compress-pdf", response_class=HTMLResponse)
+def compress_pdf(bg: BackgroundTasks,
+                 file: UploadFile = File(...),
+                 target_kb: int = Form(...)):
 
     work = tempfile.mkdtemp()
     inp = os.path.join(work, file.filename)
@@ -321,72 +268,43 @@ def compress(bg: BackgroundTasks,
     min_kb = max(50, math.ceil(orig_kb * 0.1))
 
     if target_kb < min_kb:
-        bg.add_task(cleanup, work)
-        return HTMLResponse(
-            f"<p>किमान आकार: {min_kb} KB<br>Minimum size allowed</p>",
-            status_code=400
-        )
+        bg.add_task(shutil.rmtree, work)
+        return HTMLResponse("Target too small", status_code=400)
 
     fd, out = tempfile.mkstemp(suffix=".pdf")
     os.close(fd)
 
-    subprocess.run(
-        ["python3", "compress_safe.py", inp, out, str(target_kb)]
+    subprocess.run(["python3", "compress_safe.py", inp, out, str(target_kb)])
+
+    bg.add_task(shutil.rmtree, work)
+    return FileResponse(
+        out,
+        media_type="application/pdf",
+        filename=f"compressed_{target_kb}kb.pdf",
+        background=bg
     )
 
-    comp_kb = math.ceil(os.path.getsize(out) / 1024)
-    pct = round((1 - comp_kb / orig_kb) * 100, 1)
+# ---------------------------
+# SITEMAP & ROBOTS
+# ---------------------------
+@app.get("/sitemap.xml", response_class=Response)
+def sitemap():
+    return Response(
+        content="""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://pdf-under-limit.onrender.com/</loc></url>
+  <url><loc>https://pdf-under-limit.onrender.com/compress-image</loc></url>
+</urlset>""",
+        media_type="application/xml"
+    )
 
-    did = str(uuid.uuid4())
-    DOWNLOADS[did] = out
-    bg.add_task(cleanup, work)
+@app.get("/robots.txt", response_class=Response)
+def robots():
+    return Response(
+        content="""User-agent: *
+Allow: /
 
-    return f"""
-    <html><body style="font-family:Arial;background:#f5f7fa;
-    display:flex;justify-content:center;align-items:center;padding:20px;">
-    <div style="background:white;padding:30px;border-radius:14px;
-    max-width:380px;width:100%;text-align:center;">
-    <div class="mr">PDF compress पूर्ण झाले</div>
-    <div class="en">Compression Complete</div>
-
-    <p class="mr">मूळ आकार: {orig_kb} KB</p>
-    <p class="en">Original size: {orig_kb} KB</p>
-
-    <p class="mr">compress झालेला आकार: {comp_kb} KB</p>
-    <p class="en">Compressed size: {comp_kb} KB</p>
-
-    <p class="mr">कमी झाले: {pct}%</p>
-    <p class="en">Reduced by: {pct}%</p>
-
-    <form action="/download/{did}">
-      <button style="background:#16a34a;color:white;padding:12px;
-      width:100%;border:none;border-radius:10px;">
-      <div class="mr">PDF डाउनलोड करा</div>
-      <div class="en">Download PDF</div>
-      </button>
-    </form>
-
-    <button onclick="window.location.href='/'"
-      style="margin-top:12px;padding:12px;width:100%;
-      background:#4f46e5;color:white;border:none;border-radius:10px;">
-      <div class="mr">दुसरी PDF compress करा</div>
-      <div class="en">Compress another PDF</div>
-    </button>
-    </div></body></html>
-    """
-
-@app.get("/download/{did}")
-def download(did: str, bg: BackgroundTasks):
-    path = DOWNLOADS.pop(did, None)
-    if not path or not os.path.exists(path):
-        return {"error": "Expired"}
-
-    size = math.ceil(os.path.getsize(path) / 1024)
-    bg.add_task(cleanup, path)
-
-    return FileResponse(
-        path,
-        media_type="application/pdf",
-        filename=f"compressed_{size}kb.pdf",
-        background=bg
+Sitemap: https://pdf-under-limit.onrender.com/sitemap.xml
+""",
+        media_type="text/plain"
     )
