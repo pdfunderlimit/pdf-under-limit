@@ -5,24 +5,30 @@ import shutil, tempfile, os, subprocess, uuid, math
 app = FastAPI()
 
 # ---------------------------
-# FAQ RENDERER
+# FAQ RENDERER (BILINGUAL)
 # ---------------------------
 def render_faq(faqs):
     items = ""
-    for q, a in faqs:
+    for mr_q, en_q, mr_a, en_a in faqs:
         items += f"""
         <div class="faq-item">
             <button class="faq-question"
                 onclick="this.nextElementSibling.classList.toggle('open')">
-                {q}
+                <strong>{mr_q}</strong><br>
+                <span class="en">{en_q}</span>
             </button>
-            <div class="faq-answer">{a}</div>
+            <div class="faq-answer">
+                <strong>{mr_a}</strong><br>
+                <span class="en">{en_a}</span>
+            </div>
         </div>
         """
     return f"""
     <div class="faq">
-        <h3>Frequently Asked Questions<br>
-        <span class="mr">नेहमी विचारले जाणारे प्रश्न</span></h3>
+        <h3>
+          नेहमी विचारले जाणारे प्रश्न<br>
+          <span class="en">Frequently Asked Questions</span>
+        </h3>
         {items}
     </div>
     """
@@ -30,8 +36,8 @@ def render_faq(faqs):
 # ---------------------------
 # PAGE RENDERER
 # ---------------------------
-def render_page(title, heading_en, heading_mr,
-                intro_en, intro_mr,
+def render_page(title, mr_heading, en_heading,
+                mr_intro, en_intro,
                 default_kb, request: Request,
                 faqs, readonly=True, show_hint=True):
 
@@ -43,8 +49,8 @@ def render_page(title, heading_en, heading_mr,
     hint_html = (
         f"""
         <div class="hint">
-            Target size: under <strong>{default_kb} KB</strong><br>
-            <span class="mr">लक्ष्य आकार: <strong>{default_kb} KB</strong> पेक्षा कमी</span>
+            <strong>{default_kb} KB पेक्षा कमी</strong><br>
+            <span class="en">Target size under {default_kb} KB</span>
         </div>
         """ if show_hint else ""
     )
@@ -54,7 +60,7 @@ def render_page(title, heading_en, heading_mr,
 <html>
 <head>
 <title>{title}</title>
-<meta name="description" content="{intro_en}">
+<meta name="description" content="{en_intro}">
 <style>
 body {{
     font-family: Arial, sans-serif;
@@ -64,7 +70,7 @@ body {{
     align-items: center;
 }}
 
-.mr {{
+.en {{
     font-size: 13px;
     color: #374151;
 }}
@@ -99,6 +105,22 @@ body {{
     text-align: center;
 }}
 
+.mr-title {{
+    font-size: 20px;
+    font-weight: 700;
+}}
+
+.en-title {{
+    font-size: 14px;
+    color: #374151;
+}}
+
+.hint {{
+    font-size: 14px;
+    color: #1e3a8a;
+    margin-top: 6px;
+}}
+
 input, button {{
     width: 100%;
     margin-top: 12px;
@@ -118,10 +140,17 @@ button {{
     cursor: pointer;
 }}
 
+button span {{
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+}}
+
 .loading {{
     display: none;
     margin-top: 15px;
-    color: #2563eb;
+    color: #1e3a8a;
 }}
 
 .spinner {{
@@ -144,19 +173,27 @@ button {{
     width: 360px;
 }}
 
+.faq-item {{
+    margin-bottom: 10px;
+}}
+
 .faq-question {{
     width: 100%;
     background: #eef2ff;
-    padding: 10px;
+    color: #111827;
+    padding: 12px;
     border: none;
     text-align: left;
     border-radius: 6px;
+    cursor: pointer;
 }}
 
 .faq-answer {{
     display: none;
-    padding: 10px;
-    font-size: 13px;
+    background: white;
+    padding: 12px;
+    font-size: 14px;
+    color: #111827;
 }}
 
 .faq-answer.open {{
@@ -176,30 +213,30 @@ button {{
 </div>
 
 <div class="card">
-<h2>{heading_en}</h2>
-<div class="mr">{heading_mr}</div>
+  <div class="mr-title">{mr_heading}</div>
+  <div class="en-title">{en_heading}</div>
 
-<p>{intro_en}<br>
-<span class="mr">{intro_mr}</span></p>
+  <p><strong>{mr_intro}</strong><br>
+     <span class="en">{en_intro}</span></p>
 
-{hint_html}
+  {hint_html}
 
-<form id="uploadForm" action="/compress" method="post"
-      enctype="multipart/form-data" onsubmit="startLoading()">
-<input type="file" name="file" accept="application/pdf" required>
-<input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
+  <form id="uploadForm" action="/compress" method="post"
+        enctype="multipart/form-data" onsubmit="startLoading()">
+    <input type="file" name="file" accept="application/pdf" required>
+    <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
 
-<button id="submitBtn">
-Compress PDF<br>
-<span class="mr">PDF संकुचित करा</span>
-</button>
-</form>
+    <button id="submitBtn">
+      PDF compress करा
+      <span>Compress PDF</span>
+    </button>
+  </form>
 
-<div class="loading" id="loading">
-<div class="spinner"></div>
-Compressing your PDF… please wait<br>
-<span class="mr">तुमची PDF प्रक्रिया सुरू आहे… कृपया थांबा</span>
-</div>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    PDF compress होत आहे… कृपया थांबा<br>
+    <span class="en">Compressing your PDF… please wait</span>
+  </div>
 </div>
 
 {render_faq(faqs)}
@@ -217,22 +254,153 @@ function startLoading() {{
 """
 
 # ---------------------------
-# ROUTES (example)
+# ROUTES
 # ---------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return render_page(
         "Compress PDF Online",
-        "Compress PDF to Any Size",
         "तुमची PDF आवश्यक आकारात कमी करा",
-        "Reduce PDF size to any required limit.",
-        "कोणत्याही आवश्यक मर्यादेत PDF फाईल संकुचित करा.",
+        "Compress PDF to Any Size",
+        "कोणत्याही आवश्यक मर्यादेत PDF compress करा",
+        "Reduce PDF size to any required limit",
         500, request,
         faqs=[
-            ("Is this tool free?", "Yes, this tool is completely free.")
+            ("हे टूल मोफत आहे का?", "Is this tool free?",
+             "होय, हे टूल पूर्णपणे मोफत आहे.", "Yes, it is completely free."),
         ],
         readonly=False,
         show_hint=False
     )
 
-# (Other routes remain SAME as previous final file)
+@app.get("/passport-pdf-size", response_class=HTMLResponse)
+def passport(request: Request):
+    return render_page(
+        "Passport PDF Size < 100KB",
+        "पासपोर्ट PDF 100 KB पेक्षा कमी करा",
+        "Reduce Passport PDF Size",
+        "पासपोर्ट अर्जासाठी PDF compress करा",
+        "Compress PDF for passport applications",
+        100, request,
+        faqs=[]
+    )
+
+@app.get("/compress-pdf-200kb", response_class=HTMLResponse)
+def pdf200(request: Request):
+    return render_page(
+        "Compress PDF to 200KB",
+        "PDF 200 KB पर्यंत compress करा",
+        "Compress PDF to 200KB",
+        "सरकारी फॉर्मसाठी PDF कमी करा",
+        "Reduce PDF size below 200KB",
+        200, request,
+        faqs=[]
+    )
+
+@app.get("/government-form-pdf", response_class=HTMLResponse)
+def govt(request: Request):
+    return render_page(
+        "Govt Form PDF Compression",
+        "सरकारी फॉर्मसाठी PDF compress करा",
+        "Compress PDF for Government Forms",
+        "राज्य व केंद्र सरकारी पोर्टलसाठी",
+        "For state & central government portals",
+        300, request,
+        faqs=[]
+    )
+
+@app.get("/compress-pdf-500kb", response_class=HTMLResponse)
+def pdf500(request: Request):
+    return render_page(
+        "Compress PDF to 500KB",
+        "PDF 500 KB पर्यंत compress करा",
+        "Compress PDF to 500KB",
+        "चांगल्या गुणवत्ता राखून PDF कमी करा",
+        "Keep better quality while compressing",
+        500, request,
+        faqs=[]
+    )
+
+# ---------------------------
+# BACKEND LOGIC
+# ---------------------------
+DOWNLOADS = {}
+
+def cleanup(p):
+    try:
+        if os.path.isfile(p): os.remove(p)
+        else: shutil.rmtree(p)
+    except: pass
+
+@app.post("/compress", response_class=HTMLResponse)
+def compress(bg: BackgroundTasks,
+             file: UploadFile = File(...),
+             target_kb: int = Form(...)):
+
+    work = tempfile.mkdtemp()
+    inp = os.path.join(work, file.filename)
+
+    with open(inp, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    orig_kb = math.ceil(os.path.getsize(inp)/1024)
+    min_kb = max(50, math.ceil(orig_kb*0.1))
+
+    if target_kb < min_kb:
+        bg.add_task(cleanup, work)
+        return HTMLResponse(
+            f"<p>किमान आकार: {min_kb} KB<br><span class='en'>Minimum size allowed</span></p>",
+            status_code=400
+        )
+
+    fd, out = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
+
+    subprocess.run(
+        ["python3", "compress_safe.py", inp, out, str(target_kb)]
+    )
+
+    comp_kb = math.ceil(os.path.getsize(out)/1024)
+    pct = round((1 - comp_kb/orig_kb)*100, 1)
+
+    did = str(uuid.uuid4())
+    DOWNLOADS[did] = out
+    bg.add_task(cleanup, work)
+
+    return f"""
+    <html><body style="font-family:Arial;background:#f5f7fa;
+    display:flex;justify-content:center;align-items:center;height:100vh;">
+    <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
+    <h2>PDF compress पूर्ण झाले</h2>
+    <p>Original: {orig_kb} KB</p>
+    <p>Compressed: {comp_kb} KB</p>
+    <p>Reduced: {pct}%</p>
+
+    <form action="/download/{did}">
+      <button style="background:#16a34a;color:white;padding:10px;
+      width:100%;border:none;border-radius:6px;">Download PDF</button>
+    </form>
+
+    <button onclick="window.location.href='/'"
+      style="margin-top:10px;padding:10px;width:100%;
+      background:#4f46e5;color:white;border:none;border-radius:6px;">
+      ⬅ दुसरी PDF compress करा
+    </button>
+    </div></body></html>
+    """
+
+@app.get("/download/{did}")
+def download(did: str, bg: BackgroundTasks):
+    path = DOWNLOADS.pop(did, None)
+    if not path or not os.path.exists(path):
+        return {"error": "Expired"}
+
+    size = math.ceil(os.path.getsize(path)/1024)
+    bg.add_task(cleanup, path)
+
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"compressed_{size}kb.pdf",
+        background=bg
+    )
