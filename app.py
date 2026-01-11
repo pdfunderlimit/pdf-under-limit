@@ -14,20 +14,20 @@ def render_faq(faqs):
         <div class="faq-item">
             <button class="faq-question"
                 onclick="this.nextElementSibling.classList.toggle('open')">
-                <strong>{mr_q}</strong><br>
-                <span class="en">{en_q}</span>
+                <div class="mr">{mr_q}</div>
+                <div class="en">{en_q}</div>
             </button>
             <div class="faq-answer">
-                <strong>{mr_a}</strong><br>
-                <span class="en">{en_a}</span>
+                <div class="mr">{mr_a}</div>
+                <div class="en">{en_a}</div>
             </div>
         </div>
         """
     return f"""
     <div class="faq">
         <h3>
-          नेहमी विचारले जाणारे प्रश्न<br>
-          <span class="en">Frequently Asked Questions</span>
+          नेहमी विचारले जाणारे प्रश्न
+          <div class="en">Frequently Asked Questions</div>
         </h3>
         {items}
     </div>
@@ -49,8 +49,8 @@ def render_page(title, mr_heading, en_heading,
     hint_html = (
         f"""
         <div class="hint">
-            <strong>{default_kb} KB पेक्षा कमी</strong><br>
-            <span class="en">Target size under {default_kb} KB</span>
+            <div class="mr"><strong>{default_kb} KB पेक्षा कमी</strong></div>
+            <div class="en">Target size under {default_kb} KB</div>
         </div>
         """ if show_hint else ""
     )
@@ -61,24 +61,37 @@ def render_page(title, mr_heading, en_heading,
 <head>
 <title>{title}</title>
 <meta name="description" content="{en_intro}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
 body {{
-    font-family: Arial, sans-serif;
+    font-family: "Noto Sans Devanagari", "Mangal", "Kalimati", "Kokila", Arial, sans-serif;
     background: #f5f7fa;
+    margin: 0;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
 }}
 
+.mr {{
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.6;
+    color: #111827;
+}}
+
 .en {{
     font-size: 13px;
     color: #374151;
+    line-height: 1.4;
 }}
 
 .nav {{
-    margin-top: 20px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
 }}
 
 .nav a {{
@@ -97,34 +110,19 @@ body {{
 
 .card {{
     background: white;
-    margin-top: 30px;
-    padding: 30px;
-    border-radius: 10px;
-    width: 360px;
+    margin-top: 25px;
+    padding: 28px;
+    border-radius: 12px;
+    max-width: 380px;
+    width: 100%;
     box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     text-align: center;
-}}
-
-.mr-title {{
-    font-size: 20px;
-    font-weight: 700;
-}}
-
-.en-title {{
-    font-size: 14px;
-    color: #374151;
-}}
-
-.hint {{
-    font-size: 14px;
-    color: #1e3a8a;
-    margin-top: 6px;
 }}
 
 input, button {{
     width: 100%;
     margin-top: 12px;
-    padding: 10px;
+    padding: 11px;
     font-size: 14px;
 }}
 
@@ -136,20 +134,17 @@ button {{
     background: #4f46e5;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
 }}
 
-button span {{
-    display: block;
-    font-size: 15px;
-    font-weight: 600;
+button .mr {{
     color: white;
 }}
 
 .loading {{
     display: none;
-    margin-top: 15px;
+    margin-top: 16px;
     color: #1e3a8a;
 }}
 
@@ -164,27 +159,22 @@ button span {{
 }}
 
 @keyframes spin {{
-    0% {{ transform: rotate(0deg); }}
-    100% {{ transform: rotate(360deg); }}
+    to {{ transform: rotate(360deg); }}
 }}
 
 .faq {{
     margin: 40px 0;
-    width: 360px;
-}}
-
-.faq-item {{
-    margin-bottom: 10px;
+    max-width: 380px;
+    width: 100%;
 }}
 
 .faq-question {{
     width: 100%;
     background: #eef2ff;
-    color: #111827;
     padding: 12px;
     border: none;
     text-align: left;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
 }}
 
@@ -192,8 +182,8 @@ button span {{
     display: none;
     background: white;
     padding: 12px;
-    font-size: 14px;
-    color: #111827;
+    margin-top: 6px;
+    border-radius: 8px;
 }}
 
 .faq-answer.open {{
@@ -213,11 +203,11 @@ button span {{
 </div>
 
 <div class="card">
-  <div class="mr-title">{mr_heading}</div>
-  <div class="en-title">{en_heading}</div>
+  <div class="mr">{mr_heading}</div>
+  <div class="en">{en_heading}</div>
 
-  <p><strong>{mr_intro}</strong><br>
-     <span class="en">{en_intro}</span></p>
+  <p class="mr">{mr_intro}</p>
+  <p class="en">{en_intro}</p>
 
   {hint_html}
 
@@ -227,15 +217,15 @@ button span {{
     <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
 
     <button id="submitBtn">
-      PDF compress करा
-      <span>Compress PDF</span>
+      <div class="mr">PDF compress करा</div>
+      <div class="en">Compress PDF</div>
     </button>
   </form>
 
   <div class="loading" id="loading">
     <div class="spinner"></div>
-    PDF compress होत आहे… कृपया थांबा<br>
-    <span class="en">Compressing your PDF… please wait</span>
+    <div class="mr">PDF compress होत आहे… कृपया थांबा</div>
+    <div class="en">Compressing your PDF… please wait</div>
   </div>
 </div>
 
@@ -267,7 +257,7 @@ def home(request: Request):
         500, request,
         faqs=[
             ("हे टूल मोफत आहे का?", "Is this tool free?",
-             "होय, हे टूल पूर्णपणे मोफत आहे.", "Yes, it is completely free."),
+             "होय, हे टूल पूर्णपणे मोफत आहे.", "Yes, this tool is completely free."),
         ],
         readonly=False,
         show_hint=False
@@ -276,7 +266,7 @@ def home(request: Request):
 @app.get("/passport-pdf-size", response_class=HTMLResponse)
 def passport(request: Request):
     return render_page(
-        "Passport PDF Size < 100KB",
+        "Passport PDF < 100KB",
         "पासपोर्ट PDF 100 KB पेक्षा कमी करा",
         "Reduce Passport PDF Size",
         "पासपोर्ट अर्जासाठी PDF compress करा",
@@ -315,7 +305,7 @@ def pdf500(request: Request):
         "Compress PDF to 500KB",
         "PDF 500 KB पर्यंत compress करा",
         "Compress PDF to 500KB",
-        "चांगल्या गुणवत्ता राखून PDF कमी करा",
+        "गुणवत्ता राखून PDF कमी करा",
         "Keep better quality while compressing",
         500, request,
         faqs=[]
@@ -349,7 +339,7 @@ def compress(bg: BackgroundTasks,
     if target_kb < min_kb:
         bg.add_task(cleanup, work)
         return HTMLResponse(
-            f"<p>किमान आकार: {min_kb} KB<br><span class='en'>Minimum size allowed</span></p>",
+            f"<p>किमान आकार: {min_kb} KB<br>Minimum size allowed</p>",
             status_code=400
         )
 
@@ -369,22 +359,34 @@ def compress(bg: BackgroundTasks,
 
     return f"""
     <html><body style="font-family:Arial;background:#f5f7fa;
-    display:flex;justify-content:center;align-items:center;height:100vh;">
-    <div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
-    <h2>PDF compress पूर्ण झाले</h2>
-    <p>Original: {orig_kb} KB</p>
-    <p>Compressed: {comp_kb} KB</p>
-    <p>Reduced: {pct}%</p>
+    display:flex;justify-content:center;align-items:center;padding:20px;">
+    <div style="background:white;padding:30px;border-radius:12px;
+    max-width:380px;width:100%;text-align:center;">
+    <div class="mr">PDF compress पूर्ण झाले</div>
+    <div class="en">Compression Complete</div>
+
+    <p class="mr">मूळ आकार: {orig_kb} KB</p>
+    <p class="en">Original size: {orig_kb} KB</p>
+
+    <p class="mr">compress झालेला आकार: {comp_kb} KB</p>
+    <p class="en">Compressed size: {comp_kb} KB</p>
+
+    <p class="mr">कमी झाले: {pct}%</p>
+    <p class="en">Reduced by: {pct}%</p>
 
     <form action="/download/{did}">
-      <button style="background:#16a34a;color:white;padding:10px;
-      width:100%;border:none;border-radius:6px;">Download PDF</button>
+      <button style="background:#16a34a;color:white;padding:12px;
+      width:100%;border:none;border-radius:8px;">
+      <div class="mr">PDF डाउनलोड करा</div>
+      <div class="en">Download PDF</div>
+      </button>
     </form>
 
     <button onclick="window.location.href='/'"
-      style="margin-top:10px;padding:10px;width:100%;
-      background:#4f46e5;color:white;border:none;border-radius:6px;">
-      ⬅ दुसरी PDF compress करा
+      style="margin-top:12px;padding:12px;width:100%;
+      background:#4f46e5;color:white;border:none;border-radius:8px;">
+      <div class="mr">दुसरी PDF compress करा</div>
+      <div class="en">Compress another PDF</div>
     </button>
     </div></body></html>
     """
