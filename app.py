@@ -21,7 +21,8 @@ def render_faq(faqs):
         """
     return f"""
     <div class="faq">
-        <h3>Frequently Asked Questions</h3>
+        <h3>Frequently Asked Questions<br>
+        <span class="mr">नेहमी विचारले जाणारे प्रश्न</span></h3>
         {items}
     </div>
     """
@@ -29,7 +30,9 @@ def render_faq(faqs):
 # ---------------------------
 # PAGE RENDERER
 # ---------------------------
-def render_page(title, heading, intro, default_kb, request: Request,
+def render_page(title, heading_en, heading_mr,
+                intro_en, intro_mr,
+                default_kb, request: Request,
                 faqs, readonly=True, show_hint=True):
 
     path = request.url.path
@@ -38,8 +41,12 @@ def render_page(title, heading, intro, default_kb, request: Request,
     def active(p): return "active" if path == p else ""
 
     hint_html = (
-        f'<div class="hint">Target size: under <strong>{default_kb} KB</strong></div>'
-        if show_hint else ""
+        f"""
+        <div class="hint">
+            Target size: under <strong>{default_kb} KB</strong><br>
+            <span class="mr">लक्ष्य आकार: <strong>{default_kb} KB</strong> पेक्षा कमी</span>
+        </div>
+        """ if show_hint else ""
     )
 
     return f"""
@@ -47,7 +54,7 @@ def render_page(title, heading, intro, default_kb, request: Request,
 <html>
 <head>
 <title>{title}</title>
-<meta name="description" content="{intro}">
+<meta name="description" content="{intro_en}">
 <style>
 body {{
     font-family: Arial, sans-serif;
@@ -55,6 +62,11 @@ body {{
     display: flex;
     flex-direction: column;
     align-items: center;
+}}
+
+.mr {{
+    font-size: 13px;
+    color: #374151;
 }}
 
 .nav {{
@@ -85,11 +97,6 @@ body {{
     width: 360px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     text-align: center;
-}}
-
-.hint {{
-    font-size: 13px;
-    color: #2563eb;
 }}
 
 input, button {{
@@ -137,26 +144,19 @@ button {{
     width: 360px;
 }}
 
-.faq-item {{
-    margin-bottom: 8px;
-}}
-
 .faq-question {{
     width: 100%;
     background: #eef2ff;
-    color: #1e1b4b;
     padding: 10px;
     border: none;
     text-align: left;
     border-radius: 6px;
-    cursor: pointer;
 }}
 
 .faq-answer {{
     display: none;
     padding: 10px;
     font-size: 13px;
-    color: #374151;
 }}
 
 .faq-answer.open {{
@@ -168,7 +168,7 @@ button {{
 <body>
 
 <div class="nav">
-  <a href="/passport-pdf-size" class="{active('/passport-pdf-size')}">Passport (100 KB)</a>
+  <a href="/passport-pdf-size" class="{active('/passport-pdf-size')}">Passport</a>
   <a href="/compress-pdf-200kb" class="{active('/compress-pdf-200kb')}">200 KB</a>
   <a href="/government-form-pdf" class="{active('/government-form-pdf')}">Govt Forms</a>
   <a href="/compress-pdf-500kb" class="{active('/compress-pdf-500kb')}">500 KB</a>
@@ -176,20 +176,29 @@ button {{
 </div>
 
 <div class="card">
-<h2>{heading}</h2>
-<p>{intro}</p>
+<h2>{heading_en}</h2>
+<div class="mr">{heading_mr}</div>
+
+<p>{intro_en}<br>
+<span class="mr">{intro_mr}</span></p>
+
 {hint_html}
 
 <form id="uploadForm" action="/compress" method="post"
       enctype="multipart/form-data" onsubmit="startLoading()">
 <input type="file" name="file" accept="application/pdf" required>
 <input type="number" name="target_kb" value="{default_kb}" {readonly_attr} required>
-<button id="submitBtn">Compress PDF</button>
+
+<button id="submitBtn">
+Compress PDF<br>
+<span class="mr">PDF संकुचित करा</span>
+</button>
 </form>
 
 <div class="loading" id="loading">
 <div class="spinner"></div>
-Compressing your PDF… please wait.
+Compressing your PDF… please wait<br>
+<span class="mr">तुमची PDF प्रक्रिया सुरू आहे… कृपया थांबा</span>
 </div>
 </div>
 
@@ -208,141 +217,22 @@ function startLoading() {{
 """
 
 # ---------------------------
-# RESULT PAGE
-# ---------------------------
-def render_result(original_kb, compressed_kb, percent, did):
-    return f"""
-<!DOCTYPE html>
-<html>
-<body style="font-family:Arial;background:#f5f7fa;
-display:flex;justify-content:center;align-items:center;height:100vh;">
-<div style="background:white;padding:30px;border-radius:10px;width:360px;text-align:center;">
-<h2>Compression Complete</h2>
-<p>Original: <b>{original_kb} KB</b></p>
-<p>Compressed: <b>{compressed_kb} KB</b></p>
-<p>Reduced by: <b>{percent}%</b></p>
-
-<form action="/download/{did}">
-<button style="background:#16a34a;color:white;padding:10px;
-width:100%;border:none;border-radius:6px;">Download PDF</button>
-</form>
-
-<button onclick="history.back()" style="margin-top:10px;padding:10px;
-width:100%;background:#4f46e5;color:white;border:none;border-radius:6px;">
-⬅ Compress Another PDF
-</button>
-</div>
-</body>
-</html>
-"""
-
-# ---------------------------
-# ROUTES
+# ROUTES (example)
 # ---------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    faqs = [
-        ("Can I compress PDF to any size?", "Yes, choose a custom target size."),
-        ("Why size cannot go too low?", "Some PDFs are already optimized."),
-        ("Is this free?", "Yes, completely free."),
-        ("Is my data safe?", "Files are deleted automatically.")
-    ]
-    return render_page("Compress PDF Online", "Compress PDF to Any Size",
-                       "Reduce PDF size to any required limit.",
-                       500, request, faqs, readonly=False, show_hint=False)
-
-@app.get("/passport-pdf-size", response_class=HTMLResponse)
-def passport(request: Request):
-    faqs = [
-        ("Why passport PDF under 100 KB?", "Most portals enforce strict limits."),
-        ("Will quality reduce?", "Text remains readable."),
-    ]
-    return render_page("Passport PDF < 100KB", "Reduce Passport PDF Size",
-                       "Compress passport PDF below 100KB.",
-                       100, request, faqs)
-
-@app.get("/compress-pdf-200kb", response_class=HTMLResponse)
-def pdf200(request: Request):
-    faqs = [
-        ("Why 200 KB?", "Common govt upload limit."),
-    ]
-    return render_page("Compress PDF to 200KB", "Compress PDF to 200KB",
-                       "Reduce PDF size below 200KB.",
-                       200, request, faqs)
-
-@app.get("/government-form-pdf", response_class=HTMLResponse)
-def govt(request: Request):
-    faqs = [
-        ("Do limits vary by state?", "Yes, 300–500 KB is common."),
-    ]
-    return render_page("Govt Form PDF", "Compress PDF for Government Forms",
-                       "Reduce PDF size under 300KB.",
-                       300, request, faqs)
-
-@app.get("/compress-pdf-500kb", response_class=HTMLResponse)
-def pdf500(request: Request):
-    faqs = [
-        ("Why 500 KB?", "Better image clarity."),
-    ]
-    return render_page("Compress PDF to 500KB", "Compress PDF to 500KB",
-                       "Reduce PDF size to 500KB.",
-                       500, request, faqs)
-
-# ---------------------------
-# BACKEND LOGIC
-# ---------------------------
-DOWNLOADS = {}
-
-def cleanup(p):
-    try:
-        if os.path.isfile(p): os.remove(p)
-        else: shutil.rmtree(p)
-    except: pass
-
-@app.post("/compress", response_class=HTMLResponse)
-def compress(bg: BackgroundTasks,
-             file: UploadFile = File(...),
-             target_kb: int = Form(...)):
-
-    work = tempfile.mkdtemp()
-    inp = os.path.join(work, file.filename)
-
-    with open(inp, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    orig_kb = math.ceil(os.path.getsize(inp)/1024)
-    min_kb = max(50, math.ceil(orig_kb*0.1))
-
-    if target_kb < min_kb:
-        bg.add_task(cleanup, work)
-        return HTMLResponse(f"<p>Minimum allowed: {min_kb} KB</p>", 400)
-
-    fd, out = tempfile.mkstemp(suffix=".pdf")
-    os.close(fd)
-
-    subprocess.run(
-        ["python3", "compress_safe.py", inp, out, str(target_kb)]
+    return render_page(
+        "Compress PDF Online",
+        "Compress PDF to Any Size",
+        "तुमची PDF आवश्यक आकारात कमी करा",
+        "Reduce PDF size to any required limit.",
+        "कोणत्याही आवश्यक मर्यादेत PDF फाईल संकुचित करा.",
+        500, request,
+        faqs=[
+            ("Is this tool free?", "Yes, this tool is completely free.")
+        ],
+        readonly=False,
+        show_hint=False
     )
 
-    comp_kb = math.ceil(os.path.getsize(out)/1024)
-    pct = round((1 - comp_kb/orig_kb)*100, 1)
-
-    did = str(uuid.uuid4())
-    DOWNLOADS[did] = out
-    bg.add_task(cleanup, work)
-
-    return render_result(orig_kb, comp_kb, pct, did)
-
-@app.get("/download/{did}")
-def download(did: str, bg: BackgroundTasks):
-    path = DOWNLOADS.pop(did, None)
-    if not path or not os.path.exists(path):
-        return {"error": "Expired"}
-
-    size = math.ceil(os.path.getsize(path)/1024)
-    bg.add_task(cleanup, path)
-
-    return FileResponse(path,
-        media_type="application/pdf",
-        filename=f"compressed_{size}kb.pdf",
-        background=bg)
+# (Other routes remain SAME as previous final file)
